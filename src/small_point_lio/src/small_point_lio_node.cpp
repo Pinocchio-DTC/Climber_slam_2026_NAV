@@ -10,6 +10,7 @@
 #include "lidar_adapter/livox_custom_msg.h"
 #include "lidar_adapter/livox_pointcloud2.h"
 #include "lidar_adapter/unitree_lidar.h"
+#include <filesystem>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
@@ -23,6 +24,7 @@ namespace small_point_lio {
         std::string lidar_frame = declare_parameter<std::string>("lidar_frame");
         std::string base_frame = declare_parameter<std::string>("base_frame", "base_link");
         bool save_pcd = declare_parameter<bool>("save_pcd");
+        std::string pcd_save_path = declare_parameter<std::string>("pcd_save_path", ROOT_DIR + "/pcd/scan.pcd");
         small_point_lio = std::make_unique<small_point_lio::SmallPointLio>(*this);
         odometry_publisher = create_publisher<nav_msgs::msg::Odometry>("/Odometry", 1000);
         pointcloud_publisher = create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_registered", 1000);
@@ -34,7 +36,7 @@ namespace small_point_lio {
         }
         map_save_trigger = create_service<std_srvs::srv::Trigger>(
                 "map_save",
-                [this, save_pcd, lidar_frame](const std_srvs::srv::Trigger::Request::SharedPtr req, std_srvs::srv::Trigger::Response::SharedPtr res) {
+                [this, save_pcd, pcd_save_path](const std_srvs::srv::Trigger::Request::SharedPtr req, std_srvs::srv::Trigger::Response::SharedPtr res) {
                     if (!save_pcd) {
                         res->success = false;
                         res->message = "pcd save is disabled";
@@ -45,10 +47,19 @@ namespace small_point_lio {
                     RCLCPP_INFO(rclcpp::get_logger("small_point_lio"), "waiting for pcd saving ...");
                     auto pointcloud_to_save = std::make_shared<std::vector<Eigen::Vector3f>>();
                     *pointcloud_to_save = pointcloud_mapping->get_points();
-                    std::thread([pointcloud_to_save, lidar_frame]() {
-                        io::pcd::write_pcd(ROOT_DIR + "/pcd/scan.pcd", *pointcloud_to_save);
-                        RCLCPP_INFO(rclcpp::get_logger("small_point_lio"), "save pcd success");
-                    }).detach();
+                    const std::filesystem::path save_path(pcd_save_path);
+                    if (save_path.has_parent_path()) {
+                        std::filesystem::create_directories(save_path.parent_path());
+                    }
+                    if (io::pcd::write_pcd(pcd_save_path, *pointcloud_to_save)) {
+                        res->success = true;
+                        res->message = pcd_save_path;
+                        RCLCPP_INFO(rclcpp::get_logger("small_point_lio"), "save pcd success: %s", pcd_save_path.c_str());
+                    } else {
+                        res->success = false;
+                        res->message = "failed to save pcd";
+                        RCLCPP_ERROR(rclcpp::get_logger("small_point_lio"), "failed to save pcd: %s", pcd_save_path.c_str());
+                    }
                 });
         small_point_lio->set_odometry_callback([this, lidar_frame, base_frame](const common::Odometry &odometry) {
             last_odometry = odometry;

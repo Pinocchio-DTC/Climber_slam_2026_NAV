@@ -7,11 +7,11 @@ COD_FRONT_LAUNCH="/home/nucshao/Climber_slam_2026_code/COD_Behavior/launch/cod_f
 
 ROS_SETUP_FILE="${ROS_SETUP_FILE:-/opt/ros/humble/setup.bash}"
 ROS_LOG_DIR="${ROS_LOG_DIR:-/tmp/ros_logs}"
-INITIAL_POSE_X="${INITIAL_POSE_X:--0.485}"
-INITIAL_POSE_Y="${INITIAL_POSE_Y:-4.04}"
+INITIAL_POSE_X="${INITIAL_POSE_X:--10.0}"
+INITIAL_POSE_Y="${INITIAL_POSE_Y:-0.37}"
 INITIAL_POSE_Z="${INITIAL_POSE_Z:-0.0}"
-INITIAL_POSE_QZ="${INITIAL_POSE_QZ:-0.00178}"
-INITIAL_POSE_QW="${INITIAL_POSE_QW:-0.999998}"
+INITIAL_POSE_QZ="${INITIAL_POSE_QZ:-0.002345}"
+INITIAL_POSE_QW="${INITIAL_POSE_QW:-0.999997}"
 
 check_file() {
   local path="$1"
@@ -106,7 +106,7 @@ launch_background "single Nav2 bringup" \
   "$NAV_WORKSPACE_DIR" \
   ros2 launch rm_bringup singlenav_launch.py
 
-echo "[INFO] Waiting 5 seconds before publishing initial pose..."
+echo "[INFO] Waiting 2 seconds before publishing initial pose..."
 sleep 2
 
 publish_initial_pose

@@ -358,7 +358,7 @@ map_server:  # 地图服务配置
     use_sim_time: False  # 是否使用仿真时间
     # Overridden in launch by the "map" launch configuration or provided default value.
     # To use in yaml, remove the default "map" value in the tb3_simulation_launch.py file & provide full path to map below.
-    yaml_filename: "/home/nucshao/Climber_slam_2026_NAV/src/rm_bringup/maps/2025new1.yaml"  # 地图 YAML 文件路径
+    yaml_filename: "/home/nucshao/Climber_slam_2026_NAV/src/rm_bringup/maps/RMUC1.yaml"  # 地图 YAML 文件路径
 
 map_saver:  # 地图保存服务配置
   ros__parameters:  # ROS 参数集合
@@ -494,10 +494,10 @@ amcl:  # AMCL 定位节点配置
     base_frame_id: "base_link"  # 机器人基座坐标系
     set_initial_pose: false  # 不在启动时自动设置位姿，只接受 RViz 2D Pose Estimate
     always_reset_initial_pose: false  # 不在生命周期激活阶段强制重置，避免 map_server/AMCL 启动卡住
-    initial_pose.x: 0.0  # 保留参数占位；set_initial_pose=false 时不会自动使用
-    initial_pose.y: 0.0  # 保留参数占位；set_initial_pose=false 时不会自动使用
+    initial_pose.x: -10.0  # 保留参数占位；set_initial_pose=false 时不会自动使用
+    initial_pose.y: 0.37  # 保留参数占位；set_initial_pose=false 时不会自动使用
     initial_pose.z: 0.0  # 保留参数占位；set_initial_pose=false 时不会自动使用
-    initial_pose.yaw: 0.0  # 保留参数占位；set_initial_pose=false 时不会自动使用
+    initial_pose.yaw: 0.00469  # 保留参数占位；set_initial_pose=false 时不会自动使用
     beam_skip_distance: 0.5  # 光束跳过距离 (m)
     beam_skip_error_threshold: 0.9  # 光束跳过误差阈值
     beam_skip_threshold: 0.3  # 光束跳过阈值

@@ -1,18 +1,25 @@
 import os
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, GroupAction
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import get_package_prefix, get_package_share_directory
 from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
     # 获取包的共享目录
     bring_up_dir = get_package_share_directory('rm_bringup')
+    bring_up_prefix = get_package_prefix('rm_bringup')
+    workspace_dir = bring_up_prefix.split('/install/')[0]
+    source_bringup_dir = os.path.join(workspace_dir, 'src', 'rm_bringup')
+    map_base_dir = source_bringup_dir if os.path.isdir(source_bringup_dir) else bring_up_dir
 
     rviz_config_file = os.path.join(bring_up_dir, 'rviz', 'cod_nav.rviz')
+    auto_save_dir = os.path.join(map_base_dir, 'maps', 'auto_save')
+    auto_save_pcd_file = os.path.join(auto_save_dir, 'latest_scan.pcd')
 
     # 声明启动参数
     declare_use_sim_time = DeclareLaunchArgument(
@@ -24,9 +31,14 @@ def generate_launch_description():
     declare_nav2_params_file = DeclareLaunchArgument(
         'nav2_params_file',default_value=os.path.join(bring_up_dir,'params','multiplenav2_params.yaml')
     )
+    declare_publish_map_odom_tf = DeclareLaunchArgument(
+        'publish_map_odom_tf', default_value='true',
+        description='Publish the static map->odom transform when running multiple nav standalone')
+
     use_sim_time = LaunchConfiguration('use_sim_time')
     slam_params_file = LaunchConfiguration('slam_params_file')
     nav2_params_file = LaunchConfiguration('nav2_params_file')
+    publish_map_odom_tf = LaunchConfiguration('publish_map_odom_tf')
 
     # 深度相机启动节点已注释（禁用）
     realsense_actions = []
@@ -78,7 +90,9 @@ def generate_launch_description():
                             ]
                         ),
                         {
-                            "base_frame": "chassis"
+                            "base_frame": "base_link",
+                            "save_pcd": True,
+                            "pcd_save_path": auto_save_pcd_file
                         }
                     ],
             ),
@@ -89,7 +103,7 @@ def generate_launch_description():
                 parameters=[{
                     'target_frame': 'base_link',
                     'transform_tolerance': 0.5,
-                    'min_height': 0.1,
+                    'min_height': 0.05,
                     'max_height': 1.00,
                     'angle_min': -3.1416,  # -M_PI/2
                     'angle_max': 3.1416,  # M_PI/2
@@ -115,6 +129,7 @@ def generate_launch_description():
             Node(
                 package="tf2_ros",
                 executable="static_transform_publisher",
+                condition=IfCondition(publish_map_odom_tf),
                 arguments=[
                     "--x",
                     "0.0",
@@ -165,7 +180,7 @@ def generate_launch_description():
                     "--y",
                     "0.17",
                     "--z",
-                    "0.305",
+                    "-0.101",
                     "--roll",
                     "0.0",
                     "--pitch",
@@ -207,5 +222,6 @@ def generate_launch_description():
         declare_use_sim_time,
         declare_slam_params_file,
         declare_nav2_params_file,
+        declare_publish_map_odom_tf,
         load_nodes
     ])

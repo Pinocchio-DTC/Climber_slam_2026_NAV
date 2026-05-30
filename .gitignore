@@ -7,3 +7,14 @@
 /src/build/
 /src/install/
 /src/log/
+
+# Local editor and assistant state
+/.codex
+/.vscode/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Local RVIZ recordings
+/videos/

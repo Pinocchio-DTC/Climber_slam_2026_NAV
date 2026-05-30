@@ -7,11 +7,96 @@ COD_FRONT_LAUNCH="/home/nucshao/Climber_slam_2026_code/COD_Behavior/launch/cod_f
 
 ROS_SETUP_FILE="${ROS_SETUP_FILE:-/opt/ros/humble/setup.bash}"
 ROS_LOG_DIR="${ROS_LOG_DIR:-/tmp/ros_logs}"
-INITIAL_POSE_X="${INITIAL_POSE_X:--10.0}"
-INITIAL_POSE_Y="${INITIAL_POSE_Y:-0.37}"
-INITIAL_POSE_Z="${INITIAL_POSE_Z:-0.0}"
+TEXT_LOG_DIR="${TEXT_LOG_DIR:-$NAV_WORKSPACE_DIR/log}"
+
+# RVIZ2 screen recording
+RECORD_RVIZ="${RECORD_RVIZ:-true}"
+RECORD_OUTPUT_DIR="${RECORD_OUTPUT_DIR:-$NAV_WORKSPACE_DIR/videos}"
+RECORD_FPS="${RECORD_FPS:-15}"
+RECORD_FORMAT="${RECORD_FORMAT:-avi}"
+
+INITIAL_POSE_X="${INITIAL_POSE_X:--9.68}"
+INITIAL_POSE_Y="${INITIAL_POSE_Y:-0.55}"
+INITIAL_POSE_Z="${INITIAL_POSE_Z:--0.000591}"
 INITIAL_POSE_QZ="${INITIAL_POSE_QZ:-0.002345}"
 INITIAL_POSE_QW="${INITIAL_POSE_QW:-0.999997}"
+
+start_rviz_recording() {
+  if [[ "${RECORD_RVIZ,,}" != "true" ]]; then
+    return 0
+  fi
+
+  if ! command -v ffmpeg &>/dev/null || ! command -v xdotool &>/dev/null; then
+    echo "[WARN] ffmpeg or xdotool not found, skip recording. Install: sudo apt install ffmpeg xdotool"
+    return 0
+  fi
+
+  if [[ -z "${DISPLAY:-}" ]]; then
+    echo "[WARN] DISPLAY is not set, skip RVIZ2 recording."
+    return 0
+  fi
+
+  mkdir -p "$RECORD_OUTPUT_DIR"
+
+  echo "[INFO] Waiting for RVIZ2 window ..."
+  local rviz_window_id=""
+  for i in $(seq 1 30); do
+    rviz_window_id=$(xdotool search --onlyvisible --class "rviz2" 2>/dev/null | head -1)
+    if [[ -z "$rviz_window_id" ]]; then
+      rviz_window_id=$(xdotool search --onlyvisible --name "RViz" 2>/dev/null | head -1)
+    fi
+    if [[ -n "$rviz_window_id" ]]; then
+      break
+    fi
+    sleep 1
+  done
+
+  if [[ -z "$rviz_window_id" ]]; then
+    echo "[WARN] RVIZ2 window not found within 30s, skip recording."
+    return 0
+  fi
+
+  eval "$(xdotool getwindowgeometry --shell "$rviz_window_id" 2>/dev/null)"
+  if [[ -z "${WIDTH:-}" || -z "${HEIGHT:-}" ]]; then
+    echo "[WARN] Cannot get RVIZ2 window size, skip recording."
+    return 0
+  fi
+
+  local timestamp
+  timestamp=$(date +%Y%m%d_%H%M%S)
+  local output_file="$RECORD_OUTPUT_DIR/rviz_${timestamp}.${RECORD_FORMAT}"
+
+  echo "[INFO] Recording RVIZ2 window (${WIDTH}x${HEIGHT}) → $output_file"
+  sleep 2
+  ffmpeg -loglevel error -f x11grab -framerate "$RECORD_FPS" \
+    -draw_mouse 0 \
+    -window_id "$rviz_window_id" \
+    -video_size "${WIDTH}x${HEIGHT}" \
+    -i "$DISPLAY" \
+    -c:v mpeg4 -q:v 5 -pix_fmt yuv420p -f "$RECORD_FORMAT" \
+    "$output_file" &
+  RECORD_PID=$!
+}
+
+stop_rviz_recording() {
+  if [[ -n "${RECORD_PID:-}" ]] && kill -0 "$RECORD_PID" 2>/dev/null; then
+    echo "[INFO] Stopping RVIZ2 recording (PID $RECORD_PID) ..."
+    kill -INT "$RECORD_PID" 2>/dev/null || true
+    # Give ffmpeg up to 5 seconds to finalize the file
+    for i in $(seq 1 50); do
+      if ! kill -0 "$RECORD_PID" 2>/dev/null; then
+        break
+      fi
+      sleep 0.1
+    done
+    # Force kill if still running
+    if kill -0 "$RECORD_PID" 2>/dev/null; then
+      kill -KILL "$RECORD_PID" 2>/dev/null || true
+      wait "$RECORD_PID" 2>/dev/null || true
+    fi
+    echo "[INFO] Recording saved."
+  fi
+}
 
 check_file() {
   local path="$1"
@@ -34,7 +119,12 @@ check_file "$CODE_WORKSPACE_DIR/install/setup.bash" \
 check_file "$COD_FRONT_LAUNCH"
 
 mkdir -p "$ROS_LOG_DIR"
+mkdir -p "$TEXT_LOG_DIR"
 export ROS_LOG_DIR
+
+TEXT_LOG_FILE="$TEXT_LOG_DIR/rm_serial_behavior_$(date +%Y%m%d_%H%M%S).txt"
+touch "$TEXT_LOG_FILE"
+echo "[INFO] rm_serial behavior logs will be saved to: $TEXT_LOG_FILE"
 
 # ROS setup scripts may reference unset variables, so disable nounset while sourcing.
 set +u
@@ -46,6 +136,8 @@ set -u
 PIDS=()
 
 cleanup() {
+  stop_rviz_recording
+
   if [[ ${#PIDS[@]} -eq 0 ]]; then
     return
   fi
@@ -68,7 +160,9 @@ launch_background() {
   echo "[INFO] Starting $name..."
   (
     cd "$workdir"
-    "$@"
+    exec "$@" \
+      > >(tee >(grep --line-buffered -F "[rm_serial]: behavior=" >> "$TEXT_LOG_FILE")) \
+      2> >(tee >(grep --line-buffered -F "[rm_serial]: behavior=" >> "$TEXT_LOG_FILE") >&2)
   ) &
   PIDS+=("$!")
   sleep 1
@@ -105,6 +199,8 @@ launch_background "Livox MID360 driver" \
 launch_background "single Nav2 bringup" \
   "$NAV_WORKSPACE_DIR" \
   ros2 launch rm_bringup singlenav_launch.py
+
+start_rviz_recording
 
 echo "[INFO] Waiting 2 seconds before publishing initial pose..."
 sleep 2

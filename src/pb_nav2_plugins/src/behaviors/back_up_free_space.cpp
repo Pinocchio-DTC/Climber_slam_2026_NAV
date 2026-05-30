@@ -15,6 +15,8 @@
 
 #include "pb_nav2_plugins/behaviors/back_up_free_space.hpp"
 
+#include <limits>
+
 namespace pb_nav2_behaviors
 {
 
@@ -84,13 +86,15 @@ nav2_behaviors::Status BackUpFreeSpace::onRun(
   pose.y = initial_pose_.pose.position.y;
   pose.theta = tf2::getYaw(initial_pose_.pose.orientation);
 
-  // Find the best direction to back up
+  // Find the best direction in the costmap frame, then express that velocity in base_link.
   float best_angle = findBestDirection(costmap, pose, -M_PI, M_PI, max_radius_, M_PI / 32.0);
+  const double speed = std::fabs(command->speed);
+  const double global_vx = std::cos(best_angle) * speed;
+  const double global_vy = std::sin(best_angle) * speed;
 
-  // Calculate move command
-  twist_x_ = std::cos(best_angle) * command->speed;
-  twist_y_ = std::sin(best_angle) * command->speed;
-  command_x_ = command->target.x;
+  twist_x_ = std::cos(pose.theta) * global_vx + std::sin(pose.theta) * global_vy;
+  twist_y_ = -std::sin(pose.theta) * global_vx + std::cos(pose.theta) * global_vy;
+  command_x_ = std::fabs(command->target.x);
   command_time_allowance_ = command->time_allowance;
 
   end_time_ = clock_->now() + command_time_allowance_;
@@ -101,7 +105,8 @@ nav2_behaviors::Status BackUpFreeSpace::onRun(
     return nav2_behaviors::Status::FAILED;
   }
   RCLCPP_WARN(
-    logger_, "backing up %f meters towards free space at angle %f", command_x_, best_angle);
+    logger_, "moving %f meters towards free space at map angle %f, base velocity (%f, %f)",
+    command_x_, best_angle, twist_x_, twist_y_);
 
   return nav2_behaviors::Status::SUCCEEDED;
 }
@@ -146,7 +151,7 @@ nav2_behaviors::Status BackUpFreeSpace::onCycleUpdate()
   pose.y = current_pose.pose.position.y;
   pose.theta = tf2::getYaw(current_pose.pose.orientation);
 
-  if (!isCollisionFree(distance, cmd_vel.get(), pose)) {
+  if (!isCollisionFreeOmni(distance, cmd_vel.get(), pose)) {
     stopRobot();
     RCLCPP_WARN(logger_, "Collision Ahead - Exiting DriveOnHeading");
     return nav2_behaviors::Status::FAILED;
@@ -161,13 +166,9 @@ float BackUpFreeSpace::findBestDirection(
   const nav2_msgs::msg::Costmap & costmap, geometry_msgs::msg::Pose2D pose, float start_angle,
   float end_angle, float radius, float angle_increment)
 {
-  float best_angle = start_angle;
-
-  float first_safe_angle = -1.0f;
-  float last_unsafe_angle = -1.0f;
-
-  float final_safe_angle = 0.0f;
-  float final_unsafe_angle = 0.0f;
+  float best_angle = 0.0f;
+  float best_clearance = -1.0f;
+  float best_average_cost = std::numeric_limits<float>::max();
 
   float resolution = costmap.metadata.resolution;
   float origin_x = costmap.metadata.origin.position.x;
@@ -181,54 +182,86 @@ float BackUpFreeSpace::findBestDirection(
   float map_max_y = origin_y + (size_y * resolution);
 
   for (float angle = start_angle; angle <= end_angle; angle += angle_increment) {
-    bool is_safe = true;
+    float clearance = 0.0f;
+    float cost_sum = 0.0f;
+    int samples = 0;
 
     for (float r = 0; r <= radius; r += resolution) {
       float x = pose.x + r * std::cos(angle);
       float y = pose.y + r * std::sin(angle);
 
-      if (x >= map_min_x && x <= map_max_x && y >= map_min_y && y <= map_max_y) {
-        int i = static_cast<int>((x - origin_x) / resolution);
-        int j = static_cast<int>((y - origin_y) / resolution);
-
-        if (i >= 0 && i < size_x && j >= 0 && j < size_y) {
-          if (costmap.data[i + j * size_x] >= 253) {
-            is_safe = false;
-            break;
-          }
-        } else {
-          is_safe = false;
-          break;
-        }
-      } else {
-        is_safe = false;
+      if (x < map_min_x || x >= map_max_x || y < map_min_y || y >= map_max_y) {
         break;
       }
-    }
-    if (is_safe && first_safe_angle == -1.0f) {
-      first_safe_angle = angle;
+
+      int i = static_cast<int>((x - origin_x) / resolution);
+      int j = static_cast<int>((y - origin_y) / resolution);
+
+      if (i < 0 || i >= size_x || j < 0 || j >= size_y) {
+        break;
+      }
+
+      const auto cost = costmap.data[i + j * size_x];
+      if (cost >= 253) {
+        break;
+      }
+
+      clearance = r;
+      cost_sum += static_cast<float>(cost);
+      samples++;
     }
 
-    if (!is_safe && first_safe_angle != -1.0f && last_unsafe_angle == -1.0f) {
-      last_unsafe_angle = angle;
-    }
-
+    const float average_cost = samples > 0 ? cost_sum / samples : std::numeric_limits<float>::max();
     if (
-      last_unsafe_angle - first_safe_angle > final_unsafe_angle - final_safe_angle &&
-      first_safe_angle != -1.0f && last_unsafe_angle != -1.0f) {
-      final_safe_angle = first_safe_angle;
-      final_unsafe_angle = last_unsafe_angle;
-      first_safe_angle = -1.0f;
-      last_unsafe_angle = -1.0f;
+      clearance > best_clearance + resolution ||
+      (std::fabs(clearance - best_clearance) <= resolution && average_cost < best_average_cost)) {
+      best_clearance = clearance;
+      best_average_cost = average_cost;
+      best_angle = angle;
     }
   }
-  best_angle = (final_safe_angle + final_unsafe_angle) / 2.0f;
 
   if (visualize_) {
-    visualize(pose, radius, final_safe_angle, final_unsafe_angle);
+    visualize(
+      pose, std::max(best_clearance, resolution), best_angle - angle_increment,
+      best_angle + angle_increment);
   }
 
   return best_angle;
+}
+
+bool BackUpFreeSpace::isCollisionFreeOmni(
+  const double & distance, geometry_msgs::msg::Twist * cmd_vel, geometry_msgs::msg::Pose2D & pose2d)
+{
+  int cycle_count = 0;
+  const double diff_dist = std::fabs(command_x_) - distance;
+  const int max_cycle_count = static_cast<int>(cycle_frequency_ * simulate_ahead_time_);
+  geometry_msgs::msg::Pose2D init_pose = pose2d;
+  bool fetch_data = true;
+
+  while (cycle_count < max_cycle_count) {
+    const double dt = cycle_count / cycle_frequency_;
+    const double body_dx = cmd_vel->linear.x * dt;
+    const double body_dy = cmd_vel->linear.y * dt;
+    const double sim_position_change = std::hypot(body_dx, body_dy);
+
+    pose2d.x =
+      init_pose.x + body_dx * std::cos(init_pose.theta) - body_dy * std::sin(init_pose.theta);
+    pose2d.y =
+      init_pose.y + body_dx * std::sin(init_pose.theta) + body_dy * std::cos(init_pose.theta);
+    cycle_count++;
+
+    if (diff_dist - sim_position_change <= 0.0) {
+      break;
+    }
+
+    if (!collision_checker_->isCollisionFree(pose2d, fetch_data)) {
+      return false;
+    }
+    fetch_data = false;
+  }
+
+  return true;
 }
 
 std::vector<geometry_msgs::msg::Point> BackUpFreeSpace::gatherFreePoints(

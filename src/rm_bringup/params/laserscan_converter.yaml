@@ -1,0 +1,19 @@
+pointcloud_to_laserscan_node:
+  ros__parameters:
+    # 输入：选择 Livox 过滤后的点云作为来源
+    target_frame: base_link                # 输出激光数据的坐标系，一般与机器人基座一致
+    transform_tolerance: 0.1               # tf 等待时间
+    min_height: 0.15                       # 裁剪高度下限，过滤地面
+    max_height: 1.0                        # 裁剪高度上限，过滤天花板干扰
+    angle_min: -3.14159                    # 扫描角度范围 -π 到 π，即 360°
+    angle_max: 3.14159
+    angle_increment: 0.0175                # 角度分辨率（约 1°，可根据需要调整）
+    scan_time: 0.05                        # 扫描周期（20 Hz）
+    range_min: 0.2                         # 最小有效距离
+    range_max: 20.0                        # 最大有效距离（与 AMCL 的 laser_max_range 匹配）
+    use_inf: false                          # 无效值用 inf 还是 max_range
+    inf_epsilon: 1.0                       
+    # 订阅的点云话题（从你的 costmap 配置中可知 Livox 话题为 /livox/lidar_filtered）
+    input_topic: /livox/lidar_filtered     
+    # 发布的话题名称，必须重映射为 scan，以匹配 AMCL
+    output_topic: scan

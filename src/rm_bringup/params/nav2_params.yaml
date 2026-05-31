@@ -14,7 +14,7 @@ amcl:
     beam_skip_distance: 0.5                      # 光束跳过距离 (m)
     beam_skip_error_threshold: 0.9               # 光束跳过误差阈值
     beam_skip_threshold: 0.3                     # 光束跳过阈值
-    do_beamskip: false                           # 是否启用光束跳过
+    do_beamskip: false                           # 是否启用光束跳过fvv
     global_frame_id: "map"                       # 全局地图坐标系
     lambda_short: 0.1                            # 短距离激光分布参数
     laser_likelihood_max_dist: 2.0               # 激光似然字段最大距离 (m)
@@ -228,7 +228,7 @@ local_costmap:
         plugin: "nav2_costmap_2d::InflationLayer"
         enabled: True                            # 是否启用膨胀层
         cost_scaling_factor: 8.0                 # 成本缩放因子
-        inflation_radius: 0.2                    # 膨胀半径 (m)
+        inflation_radius: 0.5                    # 膨胀半径 (m)
       
       # ========================
       # 2D体素层 - 处理激光雷达扫描数据
@@ -363,9 +363,9 @@ global_costmap:
         plugin: "nav2_costmap_2d::InflationLayer"
         enabled: True                            # 是否启用膨胀层
         cost_scaling_factor: 8.0                 # 成本缩放因子
-        inflation_radius: 0.35                   # 膨胀半径 (m)
+        inflation_radius: 0.5                   # 膨胀半径 (m)
       
-      always_send_full_costmap: True             # 总是发送完整代价地图
+      always_send_full_costmap: False             # 总是发送完整代价地图
   
   # 全局代价地图客户端配置
   global_costmap_client:

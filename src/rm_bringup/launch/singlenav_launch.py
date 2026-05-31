@@ -110,6 +110,27 @@ def generate_launch_description():
                 }],
                 name='pointcloud_to_laserscan'
             ),
+            # Node(
+            #     package='pointcloud_to_laserscan',
+            #     executable='pointcloud_to_laserscan_node',
+            #      name='pointcloud_to_laserscan',
+            #     remappings=[('cloud_in', '/livox/lidar_filtered')],
+            #     parameters=[{
+            #         'target_frame': 'base_link',
+            #         'transform_tolerance': 0.1,
+            #         'min_height': 0.15,
+            #         'max_height': 1.00,
+            #         'angle_min': -3.1416,
+            #         'angle_max': 3.1416,
+            #         'angle_increment': 0.0175,    # 约 1°
+            #         'scan_time': 0.1,             # 10 Hz
+            #         'range_min': 0.2,
+            #         'range_max': 20.0,
+            #         'use_inf': False,
+            #         'inf_epsilon': 1.0,
+            #         'output_topic': '/scan'       # 直接指定输出话题
+            #     }]
+            # ),
             Node(
                 package="tf2_ros",
                 executable="static_transform_publisher",

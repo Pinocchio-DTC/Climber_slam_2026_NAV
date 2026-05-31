@@ -203,7 +203,7 @@ launch_background "single Nav2 bringup" \
 start_rviz_recording
 
 echo "[INFO] Waiting 2 seconds before publishing initial pose..."
-sleep 2
+sleep 1
 
 publish_initial_pose
 

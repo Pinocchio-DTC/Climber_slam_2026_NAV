@@ -69,6 +69,8 @@ def generate_launch_description():
                 parameters=[{
                     'input_topic': '/livox/lidar',
                     'output_topic': '/livox/lidar_filtered',
+                    'filter_frame': 'base_link',
+                    'transform_tolerance': 0.2,
                     'min_x': -0.2, 'max_x': 0.2,
                     'min_y': -0.2, 'max_y': 0.4,
                     'min_z': -0.1, 'max_z': 0.2,
@@ -90,6 +92,7 @@ def generate_launch_description():
                             ]
                         ),
                         {
+                            "lidar_topic": "/livox/lidar_filtered",
                             "base_frame": "base_link",
                             "save_pcd": True,
                             "pcd_save_path": auto_save_pcd_file
@@ -98,7 +101,7 @@ def generate_launch_description():
             ),
             Node(
                 package='pointcloud_to_laserscan', executable='pointcloud_to_laserscan_node',
-                remappings=[('cloud_in',  '/livox/lidar'),
+                remappings=[('cloud_in',  '/livox/lidar_filtered'),
                             ('scan', '/scan')],
                 parameters=[{
                     'target_frame': 'base_link',

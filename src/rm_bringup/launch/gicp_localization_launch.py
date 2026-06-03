@@ -19,9 +19,10 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, GroupAction, SetEnvironmentVariable
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterFile
+from launch_ros.substitutions import FindPackageShare
 from nav2_common.launch import RewrittenYaml
 
 
@@ -36,6 +37,8 @@ def generate_launch_description():
     use_composition = LaunchConfiguration('use_composition')
     use_respawn = LaunchConfiguration('use_respawn')
     log_level = LaunchConfiguration('log_level')
+    raw_lidar_topic = LaunchConfiguration('raw_lidar_topic')
+    filtered_lidar_topic = LaunchConfiguration('filtered_lidar_topic')
 
     lifecycle_nodes = ['map_server']
 
@@ -92,9 +95,70 @@ def generate_launch_description():
         'log_level', default_value='info',
         description='log level')
 
+    declare_raw_lidar_topic_cmd = DeclareLaunchArgument(
+        'raw_lidar_topic',
+        default_value='/livox/lidar',
+        description='Raw Livox point cloud topic')
+
+    declare_filtered_lidar_topic_cmd = DeclareLaunchArgument(
+        'filtered_lidar_topic',
+        default_value='/livox/lidar_filtered',
+        description='Filtered Livox point cloud topic used by LIO and GICP')
+
     load_nodes = GroupAction(
         condition=IfCondition(PythonExpression(['not ', use_composition])),
         actions=[
+            Node(
+                package='cpp_lidar_filter',
+                executable='lidar_filter_node',
+                name='my_lidar_filter',
+                output='screen',
+                parameters=[{
+                    'input_topic': raw_lidar_topic,
+                    'output_topic': filtered_lidar_topic,
+                    'filter_frame': 'base_link',
+                    'transform_tolerance': 0.2,
+                    'min_x': -0.2, 'max_x': 0.2,
+                    'min_y': -0.2, 'max_y': 0.4,
+                    'min_z': -0.1, 'max_z': 0.2,
+                    'negative': True,
+                    'leaf_size': 0.05
+                }]),
+            Node(
+                package='small_point_lio',
+                executable='small_point_lio_node',
+                name='small_point_lio',
+                output='screen',
+                respawn=use_respawn,
+                respawn_delay=2.0,
+                parameters=[
+                    PathJoinSubstitution([
+                        FindPackageShare('small_point_lio'),
+                        'config',
+                        'mid360.yaml',
+                    ]),
+                    {
+                        'lidar_topic': filtered_lidar_topic,
+                        'base_frame': 'base_link',
+                        'save_pcd': False,
+                    },
+                ],
+                arguments=['--ros-args', '--log-level', log_level],
+                remappings=remappings),
+            Node(
+                package='tf2_ros',
+                executable='static_transform_publisher',
+                arguments=[
+                    '--x', '0.0',
+                    '--y', '0.17',
+                    '--z', '-0.101',
+                    '--roll', '0.0',
+                    '--pitch', '0.7854',
+                    '--yaw', '1.5708',
+                    '--frame-id', 'base_link',
+                    '--child-frame-id', 'livox_frame',
+                ],
+                remappings=remappings),
             Node(
                 package='nav2_map_server',
                 executable='map_server',
@@ -167,6 +231,8 @@ def generate_launch_description():
     ld.add_action(declare_use_composition_cmd)
     ld.add_action(declare_use_respawn_cmd)
     ld.add_action(declare_log_level_cmd)
+    ld.add_action(declare_raw_lidar_topic_cmd)
+    ld.add_action(declare_filtered_lidar_topic_cmd)
 
     ld.add_action(load_nodes)
 

@@ -11,6 +11,8 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(pcl_ros REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common io filters)
 
@@ -19,6 +21,8 @@ ament_target_dependencies(lidar_filter_node
         rclcpp sensor_msgs
         pcl_conversions
         pcl_ros
+        tf2
+        tf2_ros
         visualization_msgs
 )
 

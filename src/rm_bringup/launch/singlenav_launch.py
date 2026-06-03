@@ -66,6 +66,8 @@ def generate_launch_description():
                 parameters=[{
                     'input_topic': '/livox/lidar',
                     'output_topic': '/livox/lidar_filtered',
+                    'filter_frame': 'base_link',
+                    'transform_tolerance': 0.2,
                     'min_x': -0.3, 'max_x': 0.3,
                     'min_y': -0.3, 'max_y': 0.3,
                     'min_z': -0.1, 'max_z': 0.2,
@@ -86,13 +88,16 @@ def generate_launch_description():
                                 "mid360.yaml",
                             ]
                         ),
-                        {"base_frame": "base_link"},
+                        {
+                            "lidar_topic": "/livox/lidar_filtered",
+                            "base_frame": "base_link",
+                        },
                     ],
             ),
 
             Node(
                 package='pointcloud_to_laserscan', executable='pointcloud_to_laserscan_node',
-                remappings=[('cloud_in',  '/livox/lidar'),
+                remappings=[('cloud_in',  '/livox/lidar_filtered'),
                             ('scan', '/scan')],
                 parameters=[{
                     'target_frame': 'base_link',

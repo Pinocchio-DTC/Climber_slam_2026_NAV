@@ -30,30 +30,6 @@ def generate_launch_description():
     slam_params_file = LaunchConfiguration('slam_params_file')
     nav2_params_file = LaunchConfiguration('nav2_params_file')
 
-    # 深度相机启动节点已注释（禁用）
-    realsense_actions = []
-    # try:
-    #     realsense_dir = get_package_share_directory('realsense2_camera')
-    #     realsense_actions.append(
-    #         IncludeLaunchDescription(
-    #             PythonLaunchDescriptionSource(
-    #                 os.path.join(realsense_dir, 'launch', 'rs_launch.py')
-    #             ),
-    #             launch_arguments={
-    #                 'depth_module.depth_profile': '424x240x90',
-    #                 'pointcloud.enable': 'true',
-    #                 'pointcloud.ordered_pc': 'false',
-    #                 'pointcloud.allow_no_texture_points': 'true',
-    #                 'spatial_filter.enable': 'true',
-    #                 'temporal_filter.enable': 'true',
-    #                 'decimation_filter.enable': 'false',
-    #                 'publish_tf': 'true',
-    #                 'depth_module.enable_auto_exposure': 'true',
-    #             }.items()
-    #         )
-    #     )
-    # except PackageNotFoundError:
-    #     print('[rm_bringup] realsense2_camera not found, skip RealSense node.')
 
     # 定义节点和包含的launch文件
     load_nodes = GroupAction(
@@ -136,27 +112,14 @@ def generate_launch_description():
             #         'output_topic': '/scan'       # 直接指定输出话题
             #     }]
             # ),
-            Node(
-                package="tf2_ros",
-                executable="static_transform_publisher",
-                arguments=[
-                    "--x",
-                    "0.0",
-                    "--y",
-                    "0.17",
-                    "--z",
-                    "-0.101",
-                    "--roll",
-                    "0.0",
-                    "--pitch",
-                    "0.7854",
-                    "--yaw",
-                    "1.5708",
-                    "--frame-id",
-                    "base_link",
-                    "--child-frame-id",
-                    "livox_frame",
-                ],
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    PathJoinSubstitution([
+                        FindPackageShare('rm_tf_bringup'),
+                        'launch',
+                        'static_tf.launch.py',
+                    ])
+                ),
             ),
             # *realsense_actions,
             IncludeLaunchDescription(

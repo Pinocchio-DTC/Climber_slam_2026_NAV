@@ -1,0 +1,15 @@
+# 所有角度单位均为弧度，平移单位为米。
+# 每条变换必须包含唯一的 parent_frame 和 child_frame。
+transforms:
+  - name: base_link_to_livox
+    parent_frame: base_link
+    child_frame: livox_frame
+    translation: [0.0, 0.17, -0.101]
+    rotation_rpy: [0.0, 0.7854, 1.5708]
+
+# 新增传感器示例：
+#  - name: base_link_to_camera
+#    parent_frame: base_link
+#    child_frame: camera_link
+#    translation: [0.20, 0.0, 0.30]
+#    rotation_rpy: [0.0, 0.0, 0.0]

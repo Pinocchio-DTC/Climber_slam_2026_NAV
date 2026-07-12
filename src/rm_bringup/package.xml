@@ -20,6 +20,8 @@
   <exec_depend>nav2_common</exec_depend>
   <exec_depend>slam_toolbox</exec_depend>
   <exec_depend>small_gicp_relocalization</exec_depend>
+  <exec_depend>rm_tf_bringup</exec_depend>
+  <exec_depend>rqt_tf_tree</exec_depend>
 
   <test_depend>ament_lint_common</test_depend>
   <test_depend>ament_lint_auto</test_depend>
